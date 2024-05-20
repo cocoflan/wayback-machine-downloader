@@ -34,8 +34,12 @@ option_parser = OptionParser.new do |opts|
     options[:exact_url] = t
   end
 
-  opts.on("-o", "--only ONLY_FILTER", String, "Restrict downloading to urls that match this filter", "(use // notation for the filter to be treated as a regex)") do |t|
-    options[:only_filter] = t
+  opts.on("-w", "--wait SECONDS", Integer, "Wait the specified number of seconds between requests") do |t|
+    options[:wait_seconds] = t
+  end
+
+  opts.on("--random-wait", "When used with --wait, randomize number of seconds waited between requests by a factor of 0.5 to 2") do |t|
+    options[:wait_randomize] = true
   end
 
   opts.on("-x", "--exclude EXCLUDE_FILTER", String, "Skip downloading of urls that match this filter", "(use // notation for the filter to be treated as a regex)") do |t|

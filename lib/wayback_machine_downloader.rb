@@ -18,7 +18,7 @@ class WaybackMachineDownloader
 
   attr_accessor :base_url, :exact_url, :directory, :all_timestamps,
     :from_timestamp, :to_timestamp, :only_filter, :exclude_filter, 
-    :all, :maximum_pages, :threads_count
+    :all, :maximum_pages, :threads_count, :wait_seconds, :wait_randomized
 
   def initialize params
     @base_url = params[:base_url]
@@ -32,6 +32,8 @@ class WaybackMachineDownloader
     @all = params[:all]
     @maximum_pages = params[:maximum_pages] ? params[:maximum_pages].to_i : 100
     @threads_count = params[:threads_count].to_i
+    @wait_seconds = params[:wait_seconds].to_i
+    @wait_randomized = params[:wait_randomized]
   end
 
   def backup_name
@@ -89,6 +91,7 @@ class WaybackMachineDownloader
     print "."
     unless @exact_url
       @maximum_pages.times do |page_index|
+        wait
         snapshot_list = get_raw_list_from_api(@base_url + '/*', page_index)
         break if snapshot_list.empty?
         snapshot_list_to_consider += snapshot_list
@@ -208,6 +211,7 @@ class WaybackMachineDownloader
     @threads_count.times do
       threads << Thread.new do
         until file_queue.empty?
+          wait
           file_remote_info = file_queue.pop(true) rescue nil
           download_file(file_remote_info) if file_remote_info
         end
@@ -312,5 +316,9 @@ class WaybackMachineDownloader
 
   def semaphore
     @semaphore ||= Mutex.new
+  end
+
+  def wait
+    @wait_seconds.positive? && @wait_randomized ? sleep(@wait_seconds.to_f * (rand(1.5) + 0.5)) : sleep(@wait_seconds)
   end
 end
