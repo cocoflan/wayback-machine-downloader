@@ -6,6 +6,7 @@ require 'open-uri'
 require 'fileutils'
 require 'cgi'
 require 'json'
+require 'retryable'
 require_relative 'wayback_machine_downloader/tidy_bytes'
 require_relative 'wayback_machine_downloader/to_regex'
 require_relative 'wayback_machine_downloader/archive_api'
@@ -34,6 +35,7 @@ class WaybackMachineDownloader
     @threads_count = params[:threads_count].to_i
     @wait_seconds = params[:wait_seconds].to_i
     @wait_randomized = params[:wait_randomized]
+    @tries = params[:tries] ? params[:tries].to_i : 20
   end
 
   def backup_name
@@ -271,10 +273,12 @@ class WaybackMachineDownloader
       begin
         structure_dir_path dir_path
         open(file_path, "wb") do |file|
+          file_url_escaped = CGI.escape file_url
           begin
-            file_url_escaped = CGI.escape file_url
-            URI.open("http://web.archive.org/web/#{file_timestamp}id_/#{file_url_escaped}", "Accept-Encoding" => "plain") do |uri|
-              file.write(uri.read)
+            Retryable.retryable(tries: @tries, on: Net::ReadTimeout, sleep_method: self.method(:wait)) do
+              URI.open("http://web.archive.org/web/#{file_timestamp}id_/#{file_url_escaped}", "Accept-Encoding" => "plain") do |uri|
+                file.write(uri.read)
+              end
             end
           rescue OpenURI::HTTPError => e
             puts "#{file_url} # #{e}"

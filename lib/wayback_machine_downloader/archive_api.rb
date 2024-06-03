@@ -5,7 +5,9 @@ module ArchiveAPI
     request_url += CGI.escape url
     request_url += parameters_for_api page_index
 
-    URI.open(request_url).read
+    Retryable.retryable(tries: @tries, on: Net::ReadTimeout, sleep_method: self.method(:wait)) do
+      URI.open(request_url).read
+    end
   end
 
   def parameters_for_api page_index
