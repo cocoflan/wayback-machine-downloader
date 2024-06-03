@@ -273,10 +273,9 @@ class WaybackMachineDownloader
       begin
         structure_dir_path dir_path
         open(file_path, "wb") do |file|
-          file_url_escaped = CGI.escape file_url
           begin
             Retryable.retryable(tries: @tries, on: Net::ReadTimeout, sleep_method: self.method(:wait)) do
-              URI.open("http://web.archive.org/web/#{file_timestamp}id_/#{file_url_escaped}", "Accept-Encoding" => "plain") do |uri|
+              URI.open("http://web.archive.org/web/#{file_timestamp}id_/#{file_url}", "Accept-Encoding" => "plain") do |uri|
                 file.write(uri.read)
               end
             end
