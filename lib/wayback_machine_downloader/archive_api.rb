@@ -2,10 +2,12 @@ module ArchiveAPI
 
   def get_raw_list_from_api url, page_index
     request_url = "http://web.archive.org/cdx/search/xd?url="
-    request_url += url
+    request_url += CGI.escape url
     request_url += parameters_for_api page_index
 
-    open(request_url).read
+    Retryable.retryable(tries: @tries, on: Net::ReadTimeout, sleep_method: self.method(:wait)) do
+      URI.open(request_url).read
+    end
   end
 
   def parameters_for_api page_index
