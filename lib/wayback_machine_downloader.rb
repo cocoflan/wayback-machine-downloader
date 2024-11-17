@@ -18,7 +18,7 @@ class WaybackMachineDownloader
   VERSION = "2.2.1"
 
   attr_accessor :base_url, :exact_url, :directory, :all_timestamps,
-    :from_timestamp, :to_timestamp, :only_filter, :exclude_filter, 
+    :from_timestamp, :to_timestamp, :only_filter, :exclude_filter,
     :all, :maximum_pages, :threads_count, :wait_seconds, :wait_randomized
 
   def initialize params
@@ -94,7 +94,12 @@ class WaybackMachineDownloader
     unless @exact_url
       @maximum_pages.times do |page_index|
         wait
-        snapshot_list = get_raw_list_from_api(@base_url + '/*', page_index)
+        begin
+          snapshot_list = get_raw_list_from_api(@base_url + '/*', page_index)
+        rescue OpenURI::HTTPError => exception
+          raise unless exception.message == "400 BAD REQUEST"
+          break
+        end
         break if snapshot_list.empty?
         snapshot_list_to_consider += snapshot_list
         print "."
@@ -112,7 +117,7 @@ class WaybackMachineDownloader
       file_timestamp = line[0..13].to_i
       file_url = line[15..-2]
       file_id = file_url.split('/')[3..-1].join('/')
-      file_id = CGI::unescape file_id 
+      file_id = CGI::unescape file_id
       file_id = file_id.tidy_bytes unless file_id == ""
       if file_id.nil?
         puts "Malformed file url, ignoring: #{file_url}"
@@ -141,7 +146,7 @@ class WaybackMachineDownloader
       file_url = line[15..-2]
       file_id = file_url.split('/')[3..-1].join('/')
       file_id_and_timestamp = [file_timestamp, file_id].join('/')
-      file_id_and_timestamp = CGI::unescape file_id_and_timestamp 
+      file_id_and_timestamp = CGI::unescape file_id_and_timestamp
       file_id_and_timestamp = file_id_and_timestamp.tidy_bytes unless file_id_and_timestamp == ""
       if file_id.nil?
         puts "Malformed file url, ignoring: #{file_url}"
@@ -204,7 +209,7 @@ class WaybackMachineDownloader
       puts "\t* Exclude filter too wide (#{exclude_filter.to_s})" if @exclude_filter
       return
     end
- 
+
     puts "#{file_list_by_timestamp.count} files to download:"
 
     threads = []
