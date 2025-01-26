@@ -6,6 +6,7 @@ require 'open-uri'
 require 'fileutils'
 require 'cgi'
 require 'json'
+require 'retryable'
 require_relative 'wayback_machine_downloader/tidy_bytes'
 require_relative 'wayback_machine_downloader/to_regex'
 require_relative 'wayback_machine_downloader/archive_api'
@@ -18,7 +19,7 @@ class WaybackMachineDownloader
 
   attr_accessor :base_url, :exact_url, :directory, :all_timestamps,
     :from_timestamp, :to_timestamp, :only_filter, :exclude_filter, 
-    :all, :maximum_pages, :threads_count
+    :all, :maximum_pages, :threads_count, :wait_seconds, :wait_randomized
 
   def initialize params
     @base_url = params[:base_url]
@@ -32,6 +33,9 @@ class WaybackMachineDownloader
     @all = params[:all]
     @maximum_pages = params[:maximum_pages] ? params[:maximum_pages].to_i : 100
     @threads_count = params[:threads_count].to_i
+    @wait_seconds = params[:wait_seconds].to_i
+    @wait_randomized = params[:wait_randomized]
+    @tries = params[:tries] ? params[:tries].to_i : 20
   end
 
   def backup_name
@@ -89,6 +93,7 @@ class WaybackMachineDownloader
     print "."
     unless @exact_url
       @maximum_pages.times do |page_index|
+        wait
         snapshot_list = get_raw_list_from_api(@base_url + '/*', page_index)
         break if snapshot_list.empty?
         snapshot_list_to_consider += snapshot_list
@@ -208,6 +213,7 @@ class WaybackMachineDownloader
     @threads_count.times do
       threads << Thread.new do
         until file_queue.empty?
+          wait
           file_remote_info = file_queue.pop(true) rescue nil
           download_file(file_remote_info) if file_remote_info
         end
@@ -268,8 +274,10 @@ class WaybackMachineDownloader
         structure_dir_path dir_path
         open(file_path, "wb") do |file|
           begin
-            open("http://web.archive.org/web/#{file_timestamp}id_/#{file_url}", "Accept-Encoding" => "plain") do |uri|
-              file.write(uri.read)
+            Retryable.retryable(tries: @tries, on: Net::ReadTimeout, sleep_method: self.method(:wait)) do
+              URI.open("http://web.archive.org/web/#{file_timestamp}id_/#{file_url}", "Accept-Encoding" => "plain") do |uri|
+                file.write(uri.read)
+              end
             end
           rescue OpenURI::HTTPError => e
             puts "#{file_url} # #{e}"
@@ -311,5 +319,9 @@ class WaybackMachineDownloader
 
   def semaphore
     @semaphore ||= Mutex.new
+  end
+
+  def wait
+    @wait_seconds.positive? && @wait_randomized ? sleep(@wait_seconds.to_f * (rand(1.5) + 0.5)) : sleep(@wait_seconds)
   end
 end
